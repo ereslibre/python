@@ -1,0 +1,72 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# Copyright (C) 2010 Rafael Fernández López <ereslibre@ereslibre.es>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import warnings
+warnings.filterwarnings("ignore")
+
+import paramiko
+import getopt
+import sys
+import os
+
+def main():
+    copyAll = False
+    dropRepo = False
+
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "ad", ["all", "drop"])
+    except getopt.error, msg:
+        print msg
+        sys.exit(2)
+
+    for o, a in opts:
+        if o == "-a":
+            copyAll = True
+        if o == "-d":
+            dropRepo = True
+
+    if len(args) != 3 and not dropRepo:
+        print "usage: %s [-ad] hostname originRepo [targetRepo]" % (sys.argv[0])
+        print "\t-a [--all]\tCopies originRepo/.hg/hgrc over targetRepo/.hg after cloning."
+        print "\t-d [--drop]\tDrops originRepo. Expects only originRepo."
+        sys.exit(1)
+    elif len(args) != 2 and dropRepo:
+        print "usage: %s -d hostname repoToDrop" % (sys.argv[0])
+        sys.exit(1)
+
+    hostname = args[0]
+    orig = args[1]
+
+    if not dropRepo:
+        dest = args[2]
+
+    client = paramiko.SSHClient()
+    client.load_system_host_keys()
+    client.connect(hostname)
+
+    if not dropRepo:
+        stdin, stdout, stderr = client.exec_command("hg clone -U %s %s" % (orig, dest))
+        if copyAll:
+            stdin, stdout, stderr = client.exec_command("cp %s/.hg/hgrc %s/.hg/hgrc" % (orig, dest))
+    else:
+        stdin, stdout, stderr = client.exec_command("rm -rf %s" % (orig))
+
+    exit(0)
+
+if __name__ == "__main__":
+    main()
